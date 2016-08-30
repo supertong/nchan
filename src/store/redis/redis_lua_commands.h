@@ -397,7 +397,7 @@ static redis_lua_scripts_t redis_lua_scripts = {
    "\n"
    "return {ttl, time, tag, prev_time or 0, prev_tag or 0, data or \"\", content_type or \"\", es_event or \"\"}\n"},
 
-  {"publish", "099a98426ba600b0438d0ba1ac04289e9007fe7a",
+  {"publish", "2077baa9c1adb730d21aabc12ee437f798954256",
    "--input:  keys: [], values: [channel_id, time, message, content_type, eventsource_event, msg_ttl, max_msg_buf_size]\n"
    "--output: message_tag, channel_hash {ttl, time_last_seen, subscribers, messages}\n"
    "\n"
@@ -624,7 +624,7 @@ static redis_lua_scripts_t redis_lua_scripts = {
    "--publish message\n"
    "local unpacked\n"
    "\n"
-   "if #msg.data < 5*1024 then\n"
+   "if #msg.data < 50*1024 then\n"
    "  unpacked= {\n"
    "    \"msg\",\n"
    "    msg.ttl or 0,\n"

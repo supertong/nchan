@@ -30,21 +30,21 @@ void redis_nginx_init(void) {
 
 redisAsyncContext *redis_nginx_open_context(u_char *host, int port, int database, u_char *password, redisAsyncContext **context) {
   redisAsyncContext *ac = NULL;
-  
+
   if ((context == NULL) || (*context == NULL) || (*context)->err) {
     ac = redisAsyncConnect((const char *)host, port);
     if (ac == NULL) {
       ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: could not allocate the redis context for %s:%d", host, port);
       return NULL;
     }
-    
+
     if (ac->err) {
       ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: could not create the redis context for %s:%d - %s", host, port, ac->errstr);
       redisAsyncFree(ac);
       *context = NULL;
       return NULL;
     }
-    
+
     if(redis_nginx_event_attach(ac) == REDIS_OK) {
       *context = ac;
     }
@@ -60,19 +60,19 @@ redisAsyncContext *redis_nginx_open_context(u_char *host, int port, int database
 redisContext *redis_nginx_open_sync_context(u_char *host, int port, int database, u_char *password, redisContext **context) {
   redisContext  *c = NULL;
   redisReply    *reply;
-  
+
   if ((context == NULL) || (*context == NULL) || (*context)->err) {
     c = redisConnect((const char *)host, port);
     if (c == NULL) {
       ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: could not allocate the redis sync context for %s:%d", host, port);
       return NULL;
     }
-    
+
     if (c->err) {
       ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: could not create the redis sync context for %s:%d - %s", host, port, c->errstr);
       goto fail;
     }
-    
+
     if (context != NULL) {
       *context = c;
     }
@@ -121,8 +121,20 @@ void redis_nginx_ping_callback(redisAsyncContext *ac, void *rep, void *privdata)
 }
 
 void redis_nginx_read_event(ngx_event_t *ev) {
-  ngx_connection_t *connection = (ngx_connection_t *) ev->data;
-  redisAsyncHandleRead(connection->data);
+  redisAsyncContext *ac = ((ngx_connection_t *)ev->data)->data;
+  int bytes_left;
+  redisAsyncHandleRead(ac);
+
+  // we need to do this because hiredis, in its infinite wisdom, will read at
+  // most 16Kb of data, and there's no reliable way to tell if it read that
+  // whole amount in one gulp. Otherwise, we could just check if 16Kb have
+  //been read and try again. But no, apparently that's not an option.
+
+  ioctl(ac->c.fd, FIONREAD, &bytes_left);
+  if (bytes_left > 0) {
+    //ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "again!");
+    redis_nginx_read_event(ev);
+  }
 }
 
 void redis_nginx_write_event(ngx_event_t *ev) {
@@ -198,7 +210,7 @@ void redis_nginx_cleanup(void *privdata) {
         connection->fd = NGX_INVALID_FILE;
       }
     }
-    
+
     if ((connection->fd != NGX_INVALID_FILE)) {
       redis_nginx_del_read(privdata);
       redis_nginx_del_write(privdata);
@@ -206,7 +218,7 @@ void redis_nginx_cleanup(void *privdata) {
     } else {
       ngx_free_connection(connection);
     }
-    
+
     ac->ev.data = NULL;
   }
 }
@@ -214,19 +226,19 @@ void redis_nginx_cleanup(void *privdata) {
 int redis_nginx_event_attach(redisAsyncContext *ac) {
   ngx_connection_t *connection;
   redisContext *c = &(ac->c);
-  
+
   /* Nothing should be attached when something is already attached */
   if (ac->ev.data != NULL) {
     ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: context already attached");
     return REDIS_ERR;
   }
-  
+
   connection = ngx_get_connection(c->fd, ngx_cycle->log);
   if (connection == NULL) {
     ngx_log_error(NGX_LOG_ERR, ngx_cycle->log, 0, "redis_nginx_adapter: could not get a connection for fd #%d", c->fd);
     return REDIS_ERR;
   }
-  
+
   /* Register functions to start/stop listening for events */
   ac->ev.addRead = redis_nginx_add_read;
   ac->ev.delRead = redis_nginx_del_read;
@@ -235,6 +247,6 @@ int redis_nginx_event_attach(redisAsyncContext *ac) {
   ac->ev.cleanup = redis_nginx_cleanup;
   ac->ev.data = connection;
   connection->data = ac;
-  
+
   return REDIS_OK;
 }

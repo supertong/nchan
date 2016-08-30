@@ -224,7 +224,7 @@ end
 --publish message
 local unpacked
 
-if #msg.data < 5*1024 then
+if #msg.data < 50*1024 then
   unpacked= {
     "msg",
     msg.ttl or 0,
