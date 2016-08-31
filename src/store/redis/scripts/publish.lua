@@ -224,26 +224,18 @@ end
 --publish message
 local unpacked
 
-if #msg.data < 50*1024 then
-  unpacked= {
-    "msg",
-    msg.ttl or 0,
-    msg.time,
-    tonumber(msg.tag) or 0,
-    msg.prev_time or 0,
-    msg.prev_tag or 0,
-    msg.data or "",
-    msg.content_type or "",
-    msg.eventsource_event or ""
-  }
-else
-  unpacked= {
-    "msgkey",
-    msg.time,
-    tonumber(msg.tag) or 0,
-    key.message
-  }
-end
+-- Always push back data directly. Hacked by Supertong
+unpacked= {
+  "msg",
+  msg.ttl or 0,
+  msg.time,
+  tonumber(msg.tag) or 0,
+  msg.prev_time or 0,
+  msg.prev_tag or 0,
+  msg.data or "",
+  msg.content_type or "",
+  msg.eventsource_event or ""
+}
 
 if message_len_changed then
   unpacked[1] = "max_msgs+" .. unpacked[1]
