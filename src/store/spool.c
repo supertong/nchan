@@ -361,8 +361,8 @@ static ngx_int_t spool_fetch_msg_callback(nchan_msg_status_t findmsg_status, nch
     case MSG_NOTFOUND:
       if(spl->fetching_strategy == FETCH_IGNORE_MSG_NOTFOUND) {
         spool->msg_status = prev_status;
+        break;
       }
-      break;
     case MSG_EXPIRED:
       //is this right?
       //TODO: maybe message-expired notification
