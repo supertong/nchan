@@ -227,8 +227,8 @@ static ngx_int_t spool_nextmsg(subscriber_pool_t *spool, nchan_msg_id_t *new_las
       rbtree_remove_node(&spl->spoolseed, node);
       nchan_copy_msg_id(&spool->id, &new_id, NULL);
       rbtree_insert_node(&spl->spoolseed, node);
-      // spool->msg_status = MSG_INVALID;
-      // spool->msg = NULL;
+      spool->msg_status = MSG_INVALID;
+      spool->msg = NULL;
       newspool = spool;
 
       /*
@@ -361,8 +361,8 @@ static ngx_int_t spool_fetch_msg_callback(nchan_msg_status_t findmsg_status, nch
     case MSG_NOTFOUND:
       if(spl->fetching_strategy == FETCH_IGNORE_MSG_NOTFOUND) {
         spool->msg_status = prev_status;
-        break;
       }
+      break;
     case MSG_EXPIRED:
       //is this right?
       //TODO: maybe message-expired notification
