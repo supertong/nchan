@@ -771,7 +771,7 @@ static ngx_int_t msg_from_redis_get_message_reply(nchan_msg_t *msg, ngx_buf_t *b
 static ngx_int_t log_redis_reply(char *name, ngx_msec_t t) {
   ngx_msec_t   dt = ngx_current_msec - t;
   if(dt >= SLOW_REDIS_REPLY) {
-    ERR("SLWO_REDIS_REPLAY: redis command %s took %i msec", name, dt);
+    DBG("SLWO_REDIS_REPLAY: redis command %s took %i msec", name, dt);
   }
   return NGX_OK;
 }
