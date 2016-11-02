@@ -1308,7 +1308,7 @@ static ngx_int_t start_chanhead_spooler(rdstore_channel_head_t *head) {
     spooler_get_message_start_handler,
     spooler_get_message_finish_handler
   };
-  start_spooler(&head->spooler, &head->id, &head->status, &nchan_store_redis, head->rdt->lcf, FETCH, &handlers, head);
+  start_spooler(&head->spooler, &head->id, &head->status, &nchan_store_redis, head->rdt->lcf, FETCH_IGNORE_MSG_NOTFOUND, &handlers, head);
   return NGX_OK;
 }
 
