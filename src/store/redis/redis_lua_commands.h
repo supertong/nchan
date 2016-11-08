@@ -418,7 +418,7 @@ static redis_lua_scripts_t redis_lua_scripts = {
    "\n"
    "return {ttl, time, tag, prev_time or 0, prev_tag or 0, data or \"\", content_type or \"\", es_event or \"\"}\n"},
 
-  {"publish", "a3ef246c361dbe55269bce8afc4974c6e555a482",
+  {"publish", "690756106831fcdd1b3cb5b75d6287d522e61ea7",
    "--input:  keys: [], values: [channel_id, time, message, content_type, eventsource_event, msg_ttl, max_msg_buf_size, pubsub_msgpacked_size_cutoff]\n"
    "--output: message_tag, channel_hash {ttl, time_last_seen, subscribers, messages}\n"
    "\n"
@@ -590,7 +590,7 @@ static redis_lua_scripts_t redis_lua_scripts = {
    "  redis.call('HSET', key.channel, 'time', time)\n"
    "end\n"
    "\n"
-   "local message_len_changed = false\n"
+   "local message_len_changed = true -- always sends back max_msg information\n"
    "if channel.max_stored_messages ~= store_at_most_n_messages then\n"
    "  channel.max_stored_messages = store_at_most_n_messages\n"
    "  message_len_changed = true\n"

@@ -169,7 +169,7 @@ if time then
   redis.call('HSET', key.channel, 'time', time)
 end
 
-local message_len_changed = false
+local message_len_changed = true -- always sends back max_msg information
 if channel.max_stored_messages ~= store_at_most_n_messages then
   channel.max_stored_messages = store_at_most_n_messages
   message_len_changed = true
