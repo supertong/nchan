@@ -620,7 +620,7 @@ class PubSubTest <  Minitest::Test
   def test_access_control_options
     chan=SecureRandom.hex
     
-    request = Typhoeus::Request.new url("sub/broadcast/#{chan}"), method: :OPTIONS, headers: { 'Origin':'example.com' }
+    request = Typhoeus::Request.new url("sub/broadcast/#{chan}"), method: :OPTIONS, headers: { 'Origin' =>'example.com' }
     resp = request.run
     
     assert_equal "*", resp.headers["Access-Control-Allow-Origin"]
@@ -637,7 +637,7 @@ class PubSubTest <  Minitest::Test
     end
     
     
-    request = Typhoeus::Request.new url("pub/#{chan}"), method: :OPTIONS, headers: { 'Origin': "example.com" }
+    request = Typhoeus::Request.new url("pub/#{chan}"), method: :OPTIONS, headers: { 'Origin' => "example.com" }
     resp = request.run
     assert_equal "*", resp.headers["Access-Control-Allow-Origin"]
     %w( GET POST DELETE ).each do |v| 
@@ -925,13 +925,13 @@ class PubSubTest <  Minitest::Test
     end
     
     #test forbidding stuff
-    pub, sub = pubsub 1, extra_headers: { "Origin": "http://forbidden.com" }, pub: "pub/from_foo.bar/", sub: "sub/from_foo.bar/", timeout: 1
+    pub, sub = pubsub 1, extra_headers: { "Origin" => "http://forbidden.com" }, pub: "pub/from_foo.bar/", sub: "sub/from_foo.bar/", timeout: 1
     
-    pub.extra_headers={ "Origin": "http://foo.bar" }
+    pub.extra_headers={ "Origin" => "http://foo.bar" }
     pub.post "yeah"
     
     assert_match /20[12]/, pub.response_code.to_s
-    pub.extra_headers={ "Origin": "http://forbidden.com" }
+    pub.extra_headers={ "Origin" => "http://forbidden.com" }
     post_failed = false
     begin 
       pub.post "yeah"

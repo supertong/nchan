@@ -128,9 +128,12 @@ _build_nginx() {
     popd
   fi
 
+  rm "${srcdir}/nginx"  
+  ln -sf "${srcdir}/nginx-${_nginx_ver}" "${srcdir}/nginx"
+  
   build
 
-  pushd "${srcdir}/nginx-${_nginx_ver}"
+  pushd "${srcdir}/nginx"
   ls -alh
   make DESTDIR="$pkgdir/" install
   popd

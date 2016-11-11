@@ -9,7 +9,14 @@ require 'celluloid/io'
 require 'websocket'
 require 'uri'
 require "http/parser"
-require "http/2"
+
+begin
+  require "http/2"
+rescue Exception => e
+  HTTP2_MISSING=true
+end
+  
+
 
 PUBLISH_TIMEOUT=3 #seconds
 
@@ -637,6 +644,9 @@ class Subscriber
       attr_accessor :stream, :sock, :last_message_time, :done, :time_requested, :request_time
       GET_METHOD="GET"
       def initialize(uri, user_agent, accept="*/*", extra_headers=nil)
+        if HTTP2_MISSING
+          raise "HTTP/2 gem missing"
+        end
         super
         @done = false
         @rcvbuf=""
@@ -1205,7 +1215,7 @@ class Subscriber
     end
     
     def new_bundle(uri, user_agent)
-      super uri, user_agent, "*/*", {"TE": "Chunked"}
+      super uri, user_agent, "*/*", {"TE" => "Chunked"}
     end
     
     def setup_bundle(b)

@@ -866,7 +866,7 @@ ngx_int_t memstore_ensure_chanhead_is_ready(memstore_channel_head_t *head, uint8
   }
   assert(!head->stub && head->cf);
   owner = head->owner;
-  DBG("ensure chanhead ready: chanhead %p, status %i, foreign_ipc_sub:%p", head, head->status, head->foreign_owner_ipc_sub);
+  DBG("ensure chanhead ready: chanhead %p, status %i, foreign_ipc_sub:%p", head, (ngx_int_t )head->status, head->foreign_owner_ipc_sub);
   if(head->in_gc_queue) {//recycled chanhead
     chanhead_gc_withdraw(head, "readying INACTIVE");
   }
@@ -1627,14 +1627,18 @@ static void nchan_store_exit_worker(ngx_cycle_t *cycle) {
 }
 
 static void nchan_store_exit_master(ngx_cycle_t *cycle) {
+  ngx_core_conf_t *ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
+  
   DBG("exit master from pid %i", ngx_pid);
   
   ipc_close(ipc, cycle);
 #if FAKESHARD
   while(memstore_fakeprocess_pop()) {  };
  #endif
-  shm_free(shm, shdata);
-  shm_destroy(shm);
+  if (ccf->master != 0) {
+    shm_free(shm, shdata);
+    shm_destroy(shm);
+  }
 }
 
 static ngx_int_t validate_chanhead_messages(memstore_channel_head_t *ch) {
@@ -1994,7 +1998,9 @@ static ngx_int_t nchan_store_subscribe_continued(ngx_int_t channel_status, void*
     
     case SUB_CHANNEL_NOTSURE:
       if(use_redis) {
-        if(cf->subscribe_only_existing_channel && cf->max_channel_subscribers == 0) {
+        if(cf->subscribe_only_existing_channel) {
+          //we used to also check if cf->max_channel_subscribers == 0 here, but that's
+          //no longer necessary, as the shared subscriber total check is now disabled
           if((chanhead = nchan_memstore_find_chanhead(d->channel_id)) != NULL) {
             break;
           }
@@ -2112,6 +2118,7 @@ static ngx_int_t nchan_store_async_get_multi_message_callback(nchan_msg_status_t
   //ngx_str_t                   empty_id_str = ngx_string("-");
   get_multi_message_data_t   *d = sd->d;
   nchan_msg_copy_t            retmsg;
+  fetchmsg_data_t            *data = (fetchmsg_data_t*)d->privdata;
   
   /*
   switch(status) {
@@ -2125,6 +2132,7 @@ static ngx_int_t nchan_store_async_get_multi_message_callback(nchan_msg_status_t
   if(d->expired) {
     ERR("multimsg callback #%i for %p received after expiring at %ui status %i msg %p", d->n, d, d->expired, status, msg);
     d->getting--;
+    data->spooler->multi_countdown = d->getting;
     goto cleanup;
   }
   
@@ -2136,6 +2144,7 @@ static ngx_int_t nchan_store_async_get_multi_message_callback(nchan_msg_status_t
     return NGX_OK;
   }
   d->getting--;
+  data->spooler->multi_countdown = d->getting;
   
   if(d->msg_status == MSG_PENDING) {
     set_multimsg_msg(d, sd, msg, status);
@@ -2170,6 +2179,7 @@ static ngx_int_t nchan_store_async_get_multi_message_callback(nchan_msg_status_t
   
   if(d->getting == 0) {
     //got all the messages we wanted
+    *data->spooler->channel_status = READY;
     memstore_chanhead_release(d->chanhead, "multimsg");
     if(d->msg) {
       int16_t      *muhtags;
@@ -2237,6 +2247,7 @@ static void get_multimsg_timeout(ngx_event_t *ev) {
 
 static ngx_int_t nchan_store_async_get_multi_message(ngx_str_t *chid, nchan_msg_id_t *msg_id, callback_pt callback, void *privdata) {
   
+  fetchmsg_data_t             *data = (fetchmsg_data_t*)privdata;
   memstore_channel_head_t     *chead;
   memstore_multi_t            *multi = NULL;
   
@@ -2319,6 +2330,7 @@ static ngx_int_t nchan_store_async_get_multi_message(ngx_str_t *chid, nchan_msg_
   d->getting = getting;
   d->chanhead = chead;
   d->expired = 0;
+  data->spooler->multi_countdown = d->getting;
   
   ngx_memzero(&d->timer, sizeof(d->timer));
   nchan_init_timer(&d->timer, get_multimsg_timeout, d);
