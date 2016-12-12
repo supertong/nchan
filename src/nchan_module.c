@@ -419,7 +419,6 @@ ngx_int_t nchan_pubsub_handler(ngx_http_request_t *r) {
     }
     else if(cf->pub.websocket) {
       //no need to subscribe, but keep a connection open for publishing
-      //not yet implemented
       nchan_create_websocket_publisher(r);
     }
     else goto forbidden;
@@ -521,7 +520,7 @@ static ngx_int_t channel_info_callback(ngx_int_t status, void *rptr, void *pd) {
   if(r == NULL) {
     return NGX_ERROR;
   }
-  ngx_http_finalize_request(r, nchan_response_channel_ptr_info( (nchan_channel_t *)rptr, r, 0));
+  nchan_http_finalize_request(r, nchan_response_channel_ptr_info( (nchan_channel_t *)rptr, r, 0));
   return NGX_OK;
 }
 
@@ -541,7 +540,7 @@ static safe_request_ptr_t *nchan_set_safe_request_ptr(ngx_http_request_t *r) {
       cln->data = NULL;
       cln->handler = (ngx_http_cleanup_pt )clear_request_pointer;
     }
-    ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    nchan_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
     return NULL;
   }
   
@@ -587,7 +586,7 @@ static ngx_int_t publish_callback(ngx_int_t status, nchan_channel_t *ch, safe_re
       ctx->msg_id = ch != NULL ? ch->last_published_msg_id : empty_msgid;
       
       nchan_maybe_send_channel_event_message(r, CHAN_PUBLISH);
-      ngx_http_finalize_request(r, nchan_response_channel_ptr_info(ch, r, NGX_HTTP_ACCEPTED));
+      nchan_http_finalize_request(r, nchan_response_channel_ptr_info(ch, r, NGX_HTTP_ACCEPTED));
       return NGX_OK;
       
     case NCHAN_MESSAGE_RECEIVED:
@@ -596,7 +595,7 @@ static ngx_int_t publish_callback(ngx_int_t status, nchan_channel_t *ch, safe_re
       ctx->msg_id = ch != NULL ? ch->last_published_msg_id : empty_msgid;
       
       nchan_maybe_send_channel_event_message(r, CHAN_PUBLISH);
-      ngx_http_finalize_request(r, nchan_response_channel_ptr_info(ch, r, NGX_HTTP_CREATED));
+      nchan_http_finalize_request(r, nchan_response_channel_ptr_info(ch, r, NGX_HTTP_CREATED));
       return NGX_OK;
       
     case NGX_ERROR:
@@ -605,7 +604,7 @@ static ngx_int_t publish_callback(ngx_int_t status, nchan_channel_t *ch, safe_re
       nchan_log_request_error(r, "error publishing message");
       ctx->prev_msg_id = empty_msgid;;
       ctx->msg_id = empty_msgid;
-      ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+      nchan_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
       return NGX_ERROR;
       
     default:
@@ -613,7 +612,7 @@ static ngx_int_t publish_callback(ngx_int_t status, nchan_channel_t *ch, safe_re
       ctx->prev_msg_id = empty_msgid;;
       ctx->msg_id = empty_msgid;
       nchan_log_request_error(r, "TOTALLY UNEXPECTED error publishing message, status code %i", status);
-      ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+      nchan_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
       return NGX_ERROR;
   }
 }
@@ -631,7 +630,7 @@ static void nchan_publisher_post_request(ngx_http_request_t *r, ngx_str_t *conte
 #endif
   if((msg = ngx_pcalloc(r->pool, sizeof(*msg))) == NULL) {
     nchan_log_request_error(r, "can't allocate msg in request pool");
-    ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    nchan_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
     return; 
   }
   msg->shared = 0;
@@ -657,7 +656,7 @@ static void nchan_publisher_post_request(ngx_http_request_t *r, ngx_str_t *conte
   }
   else {
     nchan_log_request_error(r, "unexpected publisher message request body buffer location. please report this to the nchan developers.");
-    ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    nchan_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
     return;
   }
   
@@ -715,7 +714,7 @@ static ngx_int_t nchan_publisher_upstream_handler(ngx_http_request_t *sr, void *
       case NGX_HTTP_ACCEPTED:
         if(sr->upstream) {
           content_type = (sr->upstream->headers_in.content_type ? &sr->upstream->headers_in.content_type->value : NULL);
-          content_length = sr->upstream->headers_in.content_length_n > 0 ? sr->upstream->headers_in.content_length_n : 0;
+          content_length = nchan_subrequest_content_length(sr);
           request_chain = sr->upstream->out_bufs;
         }
         else {
@@ -734,15 +733,15 @@ static ngx_int_t nchan_publisher_upstream_handler(ngx_http_request_t *sr, void *
         
       case NGX_HTTP_NO_CONTENT:
         //cancel publication
-        ngx_http_finalize_request(r, NGX_HTTP_NO_CONTENT);
+        nchan_http_finalize_request(r, NGX_HTTP_NO_CONTENT);
         break;
       
       default:
-        ngx_http_finalize_request(r, NGX_HTTP_FORBIDDEN);
+        nchan_http_finalize_request(r, NGX_HTTP_FORBIDDEN);
     }
   }
   else {
-    ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    nchan_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
   }
   
   return NGX_OK;
@@ -767,6 +766,8 @@ static void nchan_publisher_body_handler_continued(ngx_http_request_t *r, ngx_st
       if(publisher_upstream_request_url_ccv == NULL) {
         ngx_str_t    *content_type = (r->headers_in.content_type ? &r->headers_in.content_type->value : NULL);
         ngx_int_t     content_length = r->headers_in.content_length_n > 0 ? r->headers_in.content_length_n : 0;
+        // no need to check for chunked transfer-encoding, nginx automatically sets the 
+        // content-length either way.
         
         nchan_publisher_post_request(r, content_type, content_length, r->request_body->bufs, channel_id, cf);
       }
@@ -775,7 +776,7 @@ static void nchan_publisher_body_handler_continued(ngx_http_request_t *r, ngx_st
         
         if((psr_stuff = ngx_palloc(r->pool, sizeof(*psr_stuff))) == NULL) {
           nchan_log_request_error(r, "can't allocate memory for publisher auth subrequest");
-          ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+          nchan_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
           return;
         }
         
@@ -831,11 +832,11 @@ static ngx_int_t nchan_publisher_body_authorize_handler(ngx_http_request_t *r, v
       nchan_publisher_body_handler_continued(r->parent, d->ch_id, cf);
     }
     else { //anything else means forbidden
-      ngx_http_finalize_request(r->parent, NGX_HTTP_FORBIDDEN);
+      nchan_http_finalize_request(r->parent, NGX_HTTP_FORBIDDEN);
     }
   }
   else {
-    ngx_http_finalize_request(r->parent, rc);
+    nchan_http_finalize_request(r->parent, rc);
   }
   return NGX_OK;
 }
@@ -847,7 +848,7 @@ static void nchan_publisher_body_handler(ngx_http_request_t *r) {
   ngx_http_complex_value_t       *authorize_request_url_ccv = cf->authorize_request_url;
   
   if((channel_id = nchan_get_channel_id(r, PUB, 1))==NULL) {
-    ngx_http_finalize_request(r, r->headers_out.status ? NGX_OK : NGX_HTTP_INTERNAL_SERVER_ERROR);
+    nchan_http_finalize_request(r, r->headers_out.status ? NGX_OK : NGX_HTTP_INTERNAL_SERVER_ERROR);
     return;
   }
   
@@ -859,7 +860,7 @@ static void nchan_publisher_body_handler(ngx_http_request_t *r) {
     
     if((psr_stuff = ngx_palloc(r->pool, sizeof(*psr_stuff))) == NULL) {
       nchan_log_request_error(r, "can't allocate memory for publisher auth subrequest");
-      ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+      nchan_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
       return;
     }
     
@@ -879,12 +880,12 @@ static void nchan_publisher_body_handler(ngx_http_request_t *r) {
     
     if((sr->request_body = ngx_pcalloc(r->pool, sizeof(ngx_http_request_body_t))) == NULL) {
       nchan_log_request_error(r, "can't allocate memory for publisher auth subrequest body");
-      ngx_http_finalize_request(r, r->headers_out.status ? NGX_OK : NGX_HTTP_INTERNAL_SERVER_ERROR);
+      nchan_http_finalize_request(r, r->headers_out.status ? NGX_OK : NGX_HTTP_INTERNAL_SERVER_ERROR);
       return;
     }
     if((content_length_elt = ngx_palloc(r->pool, sizeof(*content_length_elt))) == NULL) {
       nchan_log_request_error(r, "can't allocate memory for publisher auth subrequest content-length header");
-      ngx_http_finalize_request(r, r->headers_out.status ? NGX_OK : NGX_HTTP_INTERNAL_SERVER_ERROR);
+      nchan_http_finalize_request(r, r->headers_out.status ? NGX_OK : NGX_HTTP_INTERNAL_SERVER_ERROR);
       return;
     }
     

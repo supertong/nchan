@@ -48,11 +48,12 @@ class CfCmd #let's make a DSL!
   class Cmd
     attr_accessor :name, :type, :set, :conf, :offset_name
     attr_accessor :contexts, :args, :legacy, :alt, :disabled, :undocumented
-    attr_accessor :group, :default, :info, :value
+    attr_accessor :group, :uri, :tags, :default, :info, :value
 
     def initialize(name, func)
       self.name=name
       self.set=func
+      @tags = []
     end
     
     def group
@@ -118,6 +119,11 @@ class CfCmd #let's make a DSL!
           "  > #{line.chomp}  "
         end
         lines << out.join("\n")
+      end
+      
+      if uri
+        url = opt[:mysite] ? uri : (uri[0]=='/' ? "https://nchan.slact.net#{uri}" : uri)
+        lines << "  [more details](#{url})"
       end
       
       lines.map! {|l| "#{l}  "}
@@ -208,6 +214,8 @@ class CfCmd #let's make a DSL!
     cmd.value = opt[:value]
     cmd.default = opt[:default]
     cmd.info = opt[:info]
+    cmd.tags = opt[:tags] || []
+    cmd.uri = opt[:uri]
     
     @cmds << cmd if !cmd.disabled && !cmd.undocumented
   end
@@ -249,13 +257,19 @@ cmds.sort! do |c1, c2|
 end
 
 
+#tags=[]
+#cmds.each do |cmd|
+#  tags+= cmd.tags
+#end
+#tags.uniq!
+#puts tags.sort.join " "
 
-cmds.map! do |cmd|
+text_cmds=cmds.map do |cmd|
   cmd.to_md(:mysite => mysite)
 end
 
 
-config_documentation= cmds.join "\n\n"
+config_documentation= text_cmds.join "\n\n"
 
 #if mysite
 #  config_documentation = "<div class='configuration'><markdown>#{config_documentation}</markdown></div>"
@@ -272,8 +286,21 @@ if mysite
   # add an #about link
   text.prepend "<a id=\"about\"></a>\n"
   
-  #add a table-of-contents div right before the first heading
-  text.sub! /^#/, "<div class=\"tableOfContents\"></div>\n#"
+  #add a table-of-contents div
+  text.sub! /^<!--\s?toc\s?-->/, "<div class=\"tableOfContents\"></div>\n#"
+  
+  text.gsub! /<!--\s?tag:\s?(\S+)\s?-->/ do |whole|
+    tag = Regexp.last_match[1]
+    mycmds = cmds.select{|cmd| cmd.tags.member? tag}
+    
+    mycmds.map! { |cmd| "<a class=\"directive\" href=\"##{cmd.name}\">#{cmd.name}</a>" }
+    
+    if mycmds.count > 0
+      "<p class=\"relevant-directives\">\n related configuration: #{mycmds.join ", "}</p>"
+    else 
+      ""
+    end
+  end
 end
 
 config_heading = "## Configuration Directives"
