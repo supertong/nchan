@@ -2146,7 +2146,7 @@ static ngx_int_t nchan_store_async_get_multi_message_callback(nchan_msg_status_t
     ERR("multimsg callback #%i for %p received after expiring at %ui status %i msg %p", d->n, d, d->expired, status, msg);
     d->getting--;
     data->spooler->multi_countdown = d->getting;
-    goto cleanup;
+    // goto cleanup;
   }
   
   if(status == MSG_NORESPONSE) {
@@ -2238,7 +2238,7 @@ static ngx_int_t nchan_store_async_get_multi_message_callback(nchan_msg_status_t
     }
   }
 
-cleanup:
+// cleanup:
   if(d->getting == 0) {
     nchan_free_msg_id(&d->wanted_msgid);
     if(d->timer.timer_set) {
@@ -2249,14 +2249,14 @@ cleanup:
   return NGX_OK;
 }
 
-// static void get_multimsg_timeout(ngx_event_t *ev) {
-//   get_multi_message_data_t    *d = (get_multi_message_data_t *)ev->data;
-//   ERR("multimsg %p timeout!!", d);  
-//   d->expired = ngx_time();
-//   
-//   memstore_chanhead_release(d->chanhead, "multimsg");
-//   //don't free it, a multimsg callback might arrive late. ngx_free(d);
-// }
+static void get_multimsg_timeout(ngx_event_t *ev) {
+  get_multi_message_data_t    *d = (get_multi_message_data_t *)ev->data;
+  ERR("multimsg %p timeout!!", d);  
+  d->expired = ngx_time();
+  
+  // memstore_chanhead_release(d->chanhead, "multimsg");
+  //don't free it, a multimsg callback might arrive late. ngx_free(d);
+}
 
 static ngx_int_t nchan_store_async_get_multi_message(ngx_str_t *chid, nchan_msg_id_t *msg_id, callback_pt callback, void *privdata) {
   
@@ -2344,8 +2344,8 @@ static ngx_int_t nchan_store_async_get_multi_message(ngx_str_t *chid, nchan_msg_
   data->spooler->multi_countdown = d->getting;
   
   ngx_memzero(&d->timer, sizeof(d->timer));
-  // nchan_init_timer(&d->timer, get_multimsg_timeout, d);
-  // ngx_add_timer(&d->timer, 20000);
+  nchan_init_timer(&d->timer, get_multimsg_timeout, d);
+  ngx_add_timer(&d->timer, 20000);
   
   nchan_copy_new_msg_id(&d->wanted_msgid, msg_id);
   
