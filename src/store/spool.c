@@ -910,7 +910,7 @@ static ngx_int_t spooler_respond_message(channel_spooler_t *self, nchan_msg_t *m
   srdata.n = 0;
   
   if (self->multi_countdown > 0) {
-    DBG("Channel with countdown %i (%V) %p is on hold for respoding message %V", self->multi_countdown, self->chid, self, msgid_to_str(&msg->id));
+    ERR("Channel with countdown %i (%V) %p is on hold for respoding message %V", self->multi_countdown, self->chid, self, msgid_to_str(&msg->id));
     return NGX_OK;
   }
   DBG("Channel with countdown %i (%V) %p is respoding message %V", self->multi_countdown, self->chid, self, msgid_to_str(&msg->id));
