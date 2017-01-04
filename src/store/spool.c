@@ -909,12 +909,6 @@ static ngx_int_t spooler_respond_message(channel_spooler_t *self, nchan_msg_t *m
   srdata.msg = msg;
   srdata.n = 0;
   
-  if (self->multi_countdown > 0) {
-    ERR("Channel with countdown %i (%V) %p is on hold for respoding message %V", self->multi_countdown, self->chid, self, msgid_to_str(&msg->id));
-    return NGX_OK;
-  }
-  DBG("Channel with countdown %i (%V) %p is respoding message %V", self->multi_countdown, self->chid, self, msgid_to_str(&msg->id));
-  
   //spooler_print_contents(self);
   
   //find all spools between msg->prev_id and msg->id
@@ -1141,7 +1135,6 @@ channel_spooler_t *start_spooler(channel_spooler_t *spl, ngx_str_t *chid, chanhe
     //spl->want_to_stop = 0;
     spl->publish_events = 1;
     spl->fetching_strategy = fetching_strategy;
-    spl->multi_countdown = 0;
     
     init_spool(spl, &spl->current_msg_spool, &latest_msg_id);
     spl->current_msg_spool.msg_status = MSG_EXPECTED;
